@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Deskdoc - Patient Management</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --light: #f4f7f6;
+            --white: #ffffff;
+            --danger: #e74c3c;
+            --success: #27ae60;
+            --highlight: #f1c40f;
+            --pending: #95a5a6;
+            --ongoing: #e67e22;
+            --shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--light); padding-bottom: 60px; color: var(--primary); }
+        header { background: var(--primary); color: var(--white); padding: 1.2rem; text-align: center; position: sticky; top: 0; z-index: 1000; box-shadow: var(--shadow); }
+        .container { max-width: 1200px; margin: 0 auto; padding: 15px; }
+
+        .tabs { display: flex; background: var(--white); position: sticky; top: 65px; z-index: 999; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .tab { flex: 1; text-align: center; padding: 15px; font-weight: bold; color: #95a5a6; cursor: pointer; transition: 0.3s; }
+        .active-tab { color: var(--accent); border-bottom: 4px solid var(--accent); background: rgba(52, 152, 219, 0.05); }
+
+        .responsive-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        @media (min-width: 900px) { .responsive-grid { grid-template-columns: 1fr 1fr; } .full-width { grid-column: span 2; } }
+
+        .card { background: var(--white); padding: 20px; border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 10px; }
+        h2 { margin-top: 0; font-size: 1.1rem; color: var(--primary); border-left: 4px solid var(--accent); padding-left: 10px; }
+
+        input, button, textarea, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        button { background: var(--accent); color: var(--white); border: none; font-weight: bold; cursor: pointer; }
+
+        .calendar-grid { display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 5px; background: #eee; border: 1px solid #ddd; }
+        .weekday { background: #ecf0f1; font-weight: bold; font-size: 0.8rem; padding: 10px 0; text-align: center; }
+        .day { background: var(--white); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 1rem; cursor: pointer; position: relative; min-height: 50px; border: 2px solid transparent; }
+        .today { background: var(--accent) !important; color: white !important; font-weight: bold; }
+        .selected-day { border: 2px solid var(--highlight) !important; }
+        .apt-count { background: var(--highlight); color: #000; font-size: 0.7rem; padding: 2px 6px; border-radius: 10px; margin-top: 4px; font-weight: bold; }
+
+        .item { border-left: 5px solid var(--accent); background: #fff; padding: 15px; margin-bottom: 10px; border-radius: 0 8px 8px 0; display: flex; justify-content: space-between; align-items: flex-start; }
+        .status-tag { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; color: white; text-transform: uppercase; margin-bottom: 5px; }
+        .st-pending { background: var(--pending); }
+        .st-ongoing { background: var(--ongoing); }
+        .st-completed { background: var(--success); }
+        .st-cancel { background: var(--danger); }
+
+        .action-btns { display: flex; flex-direction: column; gap: 5px; }
+        .btn-action { width: 85px; padding: 8px; font-size: 0.7rem; border-radius: 6px; }
+
+        .stats-bar { background: var(--primary); color: white; padding: 15px; border-radius: 12px; display: flex; justify-content: space-around; text-align: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .stat-item div:first-child { font-size: 0.75rem; opacity: 0.8; }
+        .stat-item div:last-child { font-size: 1.1rem; font-weight: bold; }
+
+        #invoice-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: white;
+            z-index: 2000;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        @media print {
+            body > *:not(#invoice-overlay) { display: none !important; }
+            #invoice-overlay { display: block !important; position: relative; padding: 0; }
+            .no-print { display: none !important; }
+        }
+        
+        /* Jump to date styles */
+        .jump-btn { background: none; color: var(--primary); padding: 0; width: auto; font-size: 1.2rem; cursor: pointer; border-radius: 5px; }
+        .jump-btn:hover { color: var(--accent); }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Deskdoc</h1>
+</header>
+
+<div class="tabs no-print">
+    <div id="tab1" class="tab active-tab" onclick="showPage('booking')">Booking</div>
+    <div id="tab2" class="tab" onclick="showPage('storage')">History</div>
+    <div id="tab3" class="tab" onclick="showPage('billing')">Revenue</div>
+</div>
+
+<div class="container no-print">
+    <div id="bookingPage">
+        <div class="responsive-grid">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <button onclick="changeMonth(-1)" style="width:auto; padding:5px 15px;">&lt;</button>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <h2 id="monthDisplay" style="border:none; margin:0;"></h2>
+                        <button class="jump-btn" onclick="document.getElementById('jumpPicker').showPicker()" title="Jump to Date">📅</button>
+                        <input type="month" id="jumpPicker" style="position: absolute; opacity: 0; pointer-events: none; width: 0;" onchange="jumpToDate(this.value)">
+                    </div>
+                    <button onclick="changeMonth(1)" style="width:auto; padding:5px 15px;">&gt;</button>
+                </div>
+                <div class="calendar-grid">
+                    <div class="weekday">Su</div><div class="weekday">Mo</div><div class="weekday">Tu</div>
+                    <div class="weekday">We</div><div class="weekday">Th</div><div class="weekday">Fr</div>
+                    <div class="weekday">Sa</div>
+                </div>
+                <div id="calendar" class="calendar-grid"></div>
+            </div>
+
+            <div class="card">
+                <h2 id="formTitle">Patient Intake</h2>
+                <select id="clinicSelect">
+                    <option value="">-- Select Saved Clinic --</option>
+                </select>
+                <input type="text" id="pName" placeholder="Patient Full Name">
+                <input type="tel" id="pPhone" placeholder="Mobile Number">
+                <div style="display:flex; gap:10px;">
+                    <input type="date" id="pDate" onchange="syncCalendarWithPicker(this.value); renderPatients();">
+                    <input type="time" id="pTime">
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <input type="number" id="pFee" placeholder="Total Fee">
+                    <input type="number" id="pPaid" placeholder="Paid">
+                </div>
+                <select id="pStatus">
+                    <option value="pending">Pending</option>
+                    <option value="ongoing">Ongoing</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancel">Cancelled</option>
+                </select>
+                <textarea id="pCondition" placeholder="Diagnosis / Notes" rows="2"></textarea>
+                <button id="saveBtn" onclick="savePatient()">Save to Deskdoc</button>
+                <button id="cancelEdit" style="display:none; background:#95a5a6;" onclick="resetForm()">Cancel</button>
+            </div>
+
+            <div class="card full-width">
+                <h2 id="listHeader">Schedule <button onclick="refreshApp()" style="width:auto; padding:5px 10px; font-size:10px; float:right;">Today</button></h2>
+                <div id="patientList"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="storagePage" style="display:none;">
+        <div class="stats-bar">
+            <div class="stat-item"><div>Total Patients</div><div id="totalCountDisplay">0</div></div>
+            <div style="display:flex; gap:5px;">
+                <button onclick="exportToCSV()" style="width:auto; background:var(--success); padding:8px 15px; border-radius:8px;">Export</button>
+                <button onclick="document.getElementById('importFile').click()" style="width:auto; background:var(--highlight); color:black; padding:8px 15px; border-radius:8px;">Import</button>
+                <input type="file" id="importFile" style="display:none" accept=".csv" onchange="importFromCSV(event)">
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Manage Clinics</h2>
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="newClinicInput" placeholder="Add New Clinic Name" style="margin:0;">
+                <button onclick="addClinic()" style="width:auto; padding:0 20px;">Add</button>
+            </div>
+            <div id="clinicList" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card">
+            <input type="text" id="searchInput" placeholder="Search records by name..." onkeyup="applyFilters()">
+            <div id="fullDatabaseList"></div>
+        </div>
+
+        <div class="card" style="border: 2px solid var(--danger); background: #fff5f5;">
+            <h2 style="color: var(--danger); border-left-color: var(--danger);">Danger Zone</h2>
+            <p style="font-size: 0.85rem; margin-bottom: 15px;">Warning: This will permanently delete all patient data and clinic names. Export your data before resetting.</p>
+            <button onclick="factoryReset()" style="background: var(--danger); width: auto; padding: 10px 25px;">Reset All App Data</button>
+        </div>
+    </div>
+
+    <div id="billingPage" style="display:none;">
+        <div class="stats-bar">
+            <div class="stat-item"><div>Revenue</div><div id="totalRevenue">0</div></div>
+            <div class="stat-item"><div>Collected</div><div id="totalCollected">0</div></div>
+            <div class="stat-item"><div>Dues</div><div id="totalDues">0</div></div>
+        </div>
+        <div id="billingList"></div>
+    </div>
+</div>
+
+<div id="invoice-overlay">
+    <button class="no-print" onclick="closeInvoice()" style="background:var(--danger); width:auto; padding:10px 20px; margin-bottom:20px;">Back to App</button>
+    <button class="no-print" onclick="window.print()" style="background:var(--success); width:auto; padding:10px 20px; margin-bottom:20px; float:right;">Confirm Print / PDF</button>
+    
+    <div style="clear:both; border:1px solid #ccc; padding:30px; background:white;">
+        <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px;">
+            <h1 id="inv-clinic" style="margin: 0; color: #2c3e50; text-transform: uppercase;">CLINIC NAME</h1>
+            <p style="margin: 5px 0;">Official Patient Receipt</p>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+            <div>
+                <p><strong>Patient:</strong> <span id="inv-name"></span></p>
+                <p><strong>Contact:</strong> <span id="inv-phone"></span></p>
+            </div>
+            <div style="text-align: right;">
+                <p><strong>Date:</strong> <span id="inv-date"></span></p>
+                <p><strong>Time:</strong> <span id="inv-time"></span></p>
+            </div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+            <thead>
+                <tr style="background: #eee;">
+                    <th style="border: 1px solid #ddd; padding: 12px; text-align: left;">Service Description</th>
+                    <th style="border: 1px solid #ddd; padding: 12px; text-align: right;">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 12px;">Consultation / Treatment Session</td>
+                    <td style="border: 1px solid #ddd; padding: 12px; text-align: right;" id="inv-fee">0</td>
+                </tr>
+                <tr style="font-weight: bold;">
+                    <td style="border: 1px solid #ddd; padding: 12px; text-align: right;">Total Paid:</td>
+                    <td style="border: 1px solid #ddd; padding: 12px; text-align: right; color: green;" id="inv-paid">0</td>
+                </tr>
+                <tr style="font-weight: bold;">
+                    <td style="border: 1px solid #ddd; padding: 12px; text-align: right;">Balance Due:</td>
+                    <td style="border: 1px solid #ddd; padding: 12px; text-align: right; color: red;" id="inv-due">0</td>
+                </tr>
+            </tbody>
+        </table>
+        <div style="margin-top: 50px; text-align: center;">
+            <p>Thank you for choosing our services. Wish you a speedy recovery!</p>
+            <p style="font-size: 0.8rem; color: #999;">System: Deskdoc Management App</p>
+            <div style="margin-top: 40px; border-top: 1px solid #ccc; width: 200px; margin-left: auto; margin-right: auto; padding-top: 5px;">Authorized Signature</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let patients = JSON.parse(localStorage.getItem('pt_patients')) || [];
+    let clinics = JSON.parse(localStorage.getItem('deskdoc_clinics')) || [];
+    let currentViewDate = new Date();
+    let editId = null;
+
+    function showPage(p) {
+        ['bookingPage','storagePage','billingPage'].forEach(id => document.getElementById(id).style.display = 'none');
+        document.getElementById(p + 'Page').style.display = 'block';
+        ['tab1','tab2','tab3'].forEach(id => document.getElementById(id).classList.remove('active-tab'));
+        if(p==='booking') document.getElementById('tab1').classList.add('active-tab');
+        if(p==='storage') { document.getElementById('tab2').classList.add('active-tab'); renderStorage(); renderClinics(); }
+        if(p==='billing') { document.getElementById('tab3').classList.add('active-tab'); renderBilling(); }
+    }
+
+    function addClinic() {
+        const name = document.getElementById('newClinicInput').value.trim();
+        if(name && !clinics.includes(name)) {
+            clinics.push(name);
+            localStorage.setItem('deskdoc_clinics', JSON.stringify(clinics));
+            document.getElementById('newClinicInput').value = '';
+            renderClinics();
+        }
+    }
+
+    function removeClinic(name) {
+        if(confirm(`Remove ${name}?`)) {
+            clinics = clinics.filter(c => c !== name);
+            localStorage.setItem('deskdoc_clinics', JSON.stringify(clinics));
+            renderClinics();
+        }
+    }
+
+    function renderClinics() {
+        const select = document.getElementById('clinicSelect');
+        const list = document.getElementById('clinicList');
+        const currentVal = select.value;
+        select.innerHTML = '<option value="">-- Select Clinic --</option>' + 
+            clinics.map(c => `<option value="${c}">${c}</option>`).join('');
+        select.value = currentVal;
+        list.innerHTML = clinics.map(c => `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:8px 12px; margin-bottom:5px; border-radius:5px; border:1px solid #eee;"><span>${c}</span><button onclick="removeClinic('${c}')" style="background:var(--danger); width:auto; padding:2px 8px; font-size:10px;">X</button></div>`).join('');
+    }
+
+    function savePatient() {
+        const data = {
+            clinic: document.getElementById('clinicSelect').value || "CLINIC NAME",
+            name: document.getElementById('pName').value,
+            phone: document.getElementById('pPhone').value,
+            date: document.getElementById('pDate').value,
+            time: document.getElementById('pTime').value,
+            fee: parseFloat(document.getElementById('pFee').value) || 0,
+            paid: parseFloat(document.getElementById('pPaid').value) || 0,
+            status: document.getElementById('pStatus').value,
+            condition: document.getElementById('pCondition').value
+        };
+        if(!data.name || !data.date) { alert("Provide Name and Date."); return; }
+        if (editId) {
+            const idx = patients.findIndex(p => p.id === editId);
+            patients[idx] = { ...data, id: editId };
+            editId = null;
+        } else {
+            patients.push({ ...data, id: Date.now() });
+        }
+        localStorage.setItem('pt_patients', JSON.stringify(patients));
+        resetForm(); renderPatients(); buildCalendar();
+    }
+
+    function renderPatients() {
+        const list = document.getElementById('patientList');
+        const selected = document.getElementById('pDate').value;
+        const filtered = patients.filter(p => p.date === selected);
+        list.innerHTML = filtered.length ? filtered.map(p => `<div class="item"><div class="item-info"><span class="status-tag st-${p.status}">${p.status}</span><br><strong>${p.time}</strong> | <b>${p.name}</b></div><div class="action-btns"><button class="btn-action" style="background:var(--accent)" onclick="openInvoice(${p.id})">Invoice</button><button class="btn-action" style="background:var(--success)" onclick="goToEdit(${p.id})">Edit</button><button class="btn-action" style="background:var(--danger)" onclick="deleteEntry(${p.id})">Del</button></div></div>`).join('') : "<p style='text-align:center;color:#999'>No entries.</p>";
+    }
+
+    function openInvoice(id) {
+        const p = patients.find(x => x.id === id);
+        if(!p) return;
+        document.getElementById('inv-clinic').innerText = p.clinic;
+        document.getElementById('inv-name').innerText = p.name;
+        document.getElementById('inv-phone').innerText = p.phone || 'N/A';
+        document.getElementById('inv-date').innerText = p.date;
+        document.getElementById('inv-time').innerText = p.time || '--:--';
+        document.getElementById('inv-fee').innerText = p.fee;
+        document.getElementById('inv-paid').innerText = p.paid;
+        document.getElementById('inv-due').innerText = (p.fee - p.paid);
+        document.getElementById('invoice-overlay').style.display = 'block';
+    }
+
+    function closeInvoice() { document.getElementById('invoice-overlay').style.display = 'none'; }
+
+    function renderBilling() {
+        let rev = 0, col = 0;
+        document.getElementById('billingList').innerHTML = patients.map(p => { rev += p.fee; col += p.paid; return `<div class="item"><div class="item-info"><b>${p.name}</b><br><small>${p.date}</small></div><div style="text-align:right">Fee: ${p.fee}<br>Paid: ${p.paid}</div></div>`; }).join('');
+        document.getElementById('totalRevenue').innerText = rev;
+        document.getElementById('totalCollected').innerText = col;
+        document.getElementById('totalDues').innerText = (rev - col);
+    }
+
+    function buildCalendar() {
+        const cal = document.getElementById('calendar');
+        const y = currentViewDate.getFullYear(), m = currentViewDate.getMonth();
+        document.getElementById('monthDisplay').innerText = currentViewDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+        const start = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+        const selected = document.getElementById('pDate').value;
+        const todayStr = new Date().toISOString().split('T')[0];
+        let html = '';
+        for (let x = 0; x < start; x++) html += '<div class="day empty"></div>';
+        for (let i = 1; i <= days; i++) {
+            const dStr = `${y}-${String(m+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+            const count = patients.filter(p => p.date === dStr).length;
+            let cls = 'day';
+            if (dStr === todayStr) cls += ' today';
+            if (dStr === selected) cls += ' selected-day';
+            html += `<div class="${cls}" onclick="selectDate('${dStr}')">${i}${count > 0 ? `<span class="apt-count">${count}</span>` : ''}</div>`;
+        }
+        cal.innerHTML = html;
+    }
+
+    function selectDate(d) { document.getElementById('pDate').value = d; buildCalendar(); renderPatients(); }
+    
+    function jumpToDate(val) {
+        if (!val) return;
+        const [year, month] = val.split('-');
+        currentViewDate = new Date(year, month - 1, 1);
+        buildCalendar();
+    }
+    
+    function syncCalendarWithPicker(val) {
+        if (!val) return;
+        const d = new Date(val);
+        currentViewDate = new Date(d.getFullYear(), d.getMonth(), 1);
+        buildCalendar();
+    }
+
+    function resetForm() { editId = null; ['pName','pPhone','pFee','pPaid','pCondition','pTime'].forEach(i => document.getElementById(i).value = ''); document.getElementById('clinicSelect').value = ''; document.getElementById('saveBtn').innerText="Save to Deskdoc"; document.getElementById('cancelEdit').style.display="none"; }
+    function goToEdit(id) { editId = id; const p = patients.find(x => x.id === id); document.getElementById('clinicSelect').value = p.clinic || ''; document.getElementById('pName').value = p.name; document.getElementById('pPhone').value = p.phone; document.getElementById('pDate').value = p.date; document.getElementById('pTime').value = p.time; document.getElementById('pFee').value = p.fee; document.getElementById('pPaid').value = p.paid; document.getElementById('pStatus').value = p.status; document.getElementById('pCondition').value = p.condition; document.getElementById('saveBtn').innerText="Update Record"; document.getElementById('cancelEdit').style.display="block"; window.scrollTo(0,0); showPage('booking'); }
+    function deleteEntry(id) { if(confirm('Delete?')) { patients = patients.filter(x => x.id !== id); localStorage.setItem('pt_patients', JSON.stringify(patients)); renderPatients(); renderStorage(); buildCalendar(); } }
+    function renderStorage() { document.getElementById('totalCountDisplay').innerText = patients.length; document.getElementById('fullDatabaseList').innerHTML = patients.map(p => `<div class="item"><div class="item-info"><b>${p.name}</b><br><small>${p.phone}</small></div><button class="btn-action" style="background:var(--success)" onclick="goToEdit(${p.id})">Edit</button></div>`).join(''); }
+    function applyFilters() { const s = document.getElementById('searchInput').value.toLowerCase(); document.getElementById('fullDatabaseList').innerHTML = patients.filter(p => p.name.toLowerCase().includes(s)).map(p => `<div class="item"><div class="item-info"><b>${p.name}</b></div><button class="btn-action" style="background:var(--success)" onclick="goToEdit(${p.id})">Edit</button></div>`).join(''); }
+    function exportToCSV() { let csv = "Date,Time,Name,Fee,Paid,Status,Clinic\n" + patients.map(p => `${p.date},${p.time},"${p.name}",${p.fee},${p.paid},"${p.status}","${p.clinic}"`).join("\n"); const link = document.createElement("a"); link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv); link.download = `Deskdoc_Export.csv`; link.click(); }
+    
+    function importFromCSV(e) {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader(); reader.onload = function(ev) {
+            const lines = ev.target.result.split('\n'); if (lines.length < 2) return;
+            const existingKeys = new Set(patients.map(p => `${p.name.toLowerCase()}|${p.date}|${p.time}`));
+            const newPatients = []; let skipped = 0;
+            for (let i = 1; i < lines.length; i++) {
+                const p = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/); if (p.length < 6) continue;
+                const name = p[2].replace(/"/g,'').trim(); const date = p[0].trim(); const time = p[1].trim();
+                const key = `${name.toLowerCase()}|${date}|${time}`;
+                if (existingKeys.has(key)) { skipped++; } else {
+                    newPatients.push({ id: Date.now() + Math.random(), date: date, time: time, name: name, fee: parseFloat(p[3]) || 0, paid: parseFloat(p[4]) || 0, status: p[5].replace(/"/g,'').trim(), clinic: p[6] ? p[6].replace(/"/g,'').trim() : "CLINIC NAME", phone: '', condition: '' });
+                    existingKeys.add(key);
+                }
+            }
+            if(newPatients.length > 0) { if(confirm(`Imported ${newPatients.length} records. (${skipped} skipped). Merge?`)) { patients = [...patients, ...newPatients]; localStorage.setItem('pt_patients', JSON.stringify(patients)); buildCalendar(); renderPatients(); renderStorage(); alert("Success!"); } }
+        }; reader.readAsText(file); e.target.value = '';
+    }
+
+    function factoryReset() {
+        if(confirm("DANGER: This will delete ALL patients and ALL clinic names forever. Are you sure?")) {
+            if(confirm("FINAL CONFIRMATION: Are you really sure? This cannot be undone.")) {
+                localStorage.removeItem('pt_patients');
+                localStorage.removeItem('deskdoc_clinics');
+                patients = [];
+                clinics = [];
+                location.reload();
+            }
+        }
+    }
+
+    function changeMonth(o) { currentViewDate.setMonth(currentViewDate.getMonth() + o); buildCalendar(); }
+    function refreshApp() { currentViewDate = new Date(); document.getElementById('pDate').valueAsDate = new Date(); buildCalendar(); renderPatients(); }
+    document.getElementById('pDate').valueAsDate = new Date();
+    renderClinics(); buildCalendar(); renderPatients();
+</script>
+</body>
+</html>
