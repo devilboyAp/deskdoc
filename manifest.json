@@ -6,7 +6,7 @@
   "orientation": "any",
   "scope": "/",
   "short_name": "Deskdoc",
-  "start_url": "/",
+  "start_url": "/deskdoc/",
   "theme_color": "#ffffff",
   "description": "Clinic & Patient Management System",
   "id": "com.drapurbadeb.deskdoc"
